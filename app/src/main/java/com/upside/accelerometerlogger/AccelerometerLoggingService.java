@@ -56,7 +56,6 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Start the service in the foreground if required
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
         return START_STICKY;
@@ -65,7 +64,7 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // Unregister sensor listener when the service is destroyed
+        // Unregister sensor listener on destroy
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
             System.out.println("Accelerometer sensor unregistered");
@@ -101,6 +100,6 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // Not used in this example
+        // not used
     }
 }
