@@ -1,14 +1,11 @@
-package com.upside.accelerometerlogger;
-/*
-* TODO: add popup when push buttons
-* TODO: try to log with closed app
-*
-* */
+package com.upside.logger;
+
 import androidx.appcompat.app.AppCompatActivity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -41,7 +38,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if(view == start){
 
             // starting the service
-            startService(new Intent( this, AccelerometerLoggingService.class ) );
+            startService(new Intent( this, SensorLogger.class ) );
+            Toast.makeText(MainActivity.this, "Logging started", Toast.LENGTH_SHORT).show();
+
         }
 
         // process to be performed
@@ -49,7 +48,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         else if (view == stop){
 
             // stopping the service
-            stopService(new Intent( this, AccelerometerLoggingService.class ) );
+            stopService(new Intent( this, SensorLogger.class ) );
+            Toast.makeText(MainActivity.this, "Logging stopped", Toast.LENGTH_SHORT).show();
 
         }
     }

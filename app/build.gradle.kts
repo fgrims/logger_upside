@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "com.upside.accelerometerlogger"
+    namespace = "com.upside.logger"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.upside.accelerometerlogger"
+        applicationId = "com.upside.logger"
         minSdk = 33
         targetSdk = 34
         versionCode = 1

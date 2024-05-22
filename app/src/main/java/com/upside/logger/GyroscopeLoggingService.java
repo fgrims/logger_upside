@@ -1,15 +1,14 @@
-package com.upside.accelerometerlogger;
+package com.upside.logger;
 
 import android.app.Service;
-import android.app.Activity;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Environment;
 import android.os.IBinder;
 import android.util.Log;
-import android.os.Environment;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -17,11 +16,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class AccelerometerLoggingService extends Service implements SensorEventListener {
+public class GyroscopeLoggingService extends Service implements SensorEventListener {
     private SensorManager sensorManager;
-    private Sensor accelerometer;
+    private Sensor gyroscope;
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-    public File file = new File(this.downloadsDir, "accelerometer_log.txt");
+    public File file = new File(this.downloadsDir, "gyroscope_log.txt");
     public FileWriter outfile;
     public BufferedWriter bw;
 
@@ -31,12 +30,12 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
         super.onCreate();
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         if (sensorManager != null) {
-            accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            if (accelerometer != null) {
-                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-                System.out.println("Accelerometer sensor registered");
+            gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+            if (gyroscope != null) {
+                sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_NORMAL);
+                System.out.println("gyroscope sensor registered");
             } else {
-                Log.e("AccelerometerLogging", "Accelerometer sensor not available");
+                Log.e("gyroscopeLogging", "gyroscope sensor not available");
             }
         }
 
@@ -45,12 +44,12 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
                 this.file.createNewFile();
             }
             this.outfile = new FileWriter(this.file.getAbsoluteFile());
-            String[] header = { "accelerometer.x", "accelerometer.y", "accelerometer.z" };
+            String[] header = { "gyroscope.x", "gyroscope.y", "gyroscope.z" };
             this.bw = new BufferedWriter(this.outfile);
             this.bw.write(Arrays.toString(header));
 
         } catch (IOException e) {
-            Log.e("AccelerometerLogging", "Error opening file for writing");
+            Log.e("gyroscopeLogging", "Error opening file for writing");
         }
     }
 
@@ -67,13 +66,13 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
         // Unregister sensor listener on destroy
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
-            System.out.println("Accelerometer sensor unregistered");
+            System.out.println("gyroscope sensor unregistered");
         }
 
         try{
             this.bw.close();
         } catch (IOException e) {
-            Log.e("AccelerometerLogging", "Error closing file");
+            Log.e("gyroscopeLogging", "Error closing file");
         }
     }
 
@@ -84,7 +83,7 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+        if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
             float x = event.values[0];
             float y = event.values[1];
             float z = event.values[2];
@@ -94,7 +93,7 @@ public class AccelerometerLoggingService extends Service implements SensorEventL
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            System.out.println("Accelerometer data written to file");
+            System.out.println("gyroscope data written to file");
         }
     }
 

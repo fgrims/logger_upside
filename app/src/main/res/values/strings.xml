@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">AccelerometerLogger</string>
-    <string name="heading">Accelerometer Logger</string>
+    <string name="app_name">TracerLogger</string>
+    <string name="heading">Tracer and Logger</string>
     <string name="startButtonText">Start the Logging Service</string>
     <string name="stopButtonText">Stop the Logging Service</string>
 </resources>
