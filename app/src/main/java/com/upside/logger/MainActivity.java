@@ -1,9 +1,15 @@
 package com.upside.logger;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.app.AppOpsManager;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
@@ -11,37 +17,35 @@ import android.widget.Toast;
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private Button start, stop, startTracing, stopTracing;
+    Context context = this;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate( savedInstanceState );
         setContentView( R.layout.activity_main );
 
-        // have to enable the permission to access the usage stats
-        startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        if (!checkPermission()) {
+            // TODO: add pop up
+            // have to enable the permission to access the usage stats
+            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        }
 
-        // assigning ID of startButton
 
-        startTracing = (Button) findViewById(R.id.startTracingButton);
-        stopTracing = (Button) findViewById(R.id.stopTracingButton);
-        // to the object start
-        start = (Button) findViewById( R.id.startButton );
-        // assigning ID of stopButton
-        // to the object stop
-        stop = (Button) findViewById( R.id.stopButton );
+        startTracing = findViewById(R.id.startTracingButton);
+        stopTracing = findViewById(R.id.stopTracingButton);
 
-        // declaring listeners for the
-        // buttons to make them respond
-        // correctly according to the process
+        start = findViewById( R.id.startButton );
+        stop = findViewById( R.id.stopButton );
+
         startTracing.setOnClickListener( this );
         stopTracing.setOnClickListener( this );
+
         start.setOnClickListener( this );
         stop.setOnClickListener( this );
     }
 
     public void onClick(View view) {
 
-        // process to be performed
         // if start button is clicked
         if(view == start){
 
@@ -51,7 +55,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         }
 
-        // process to be performed
         // if stop button is clicked
         else if (view == stop){
 
@@ -66,6 +69,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } else if (view == stopTracing){
             stopService(new Intent(this, Tracer.class));
             Toast.makeText(MainActivity.this, "Tracing stopped", Toast.LENGTH_SHORT).show();
+        }
+    }
+    private boolean checkPermission() {
+        try {
+            PackageManager packageManager = context.getPackageManager();
+            ApplicationInfo applicationInfo = packageManager.getApplicationInfo(context.getPackageName(), 0);
+            AppOpsManager appOpsManager = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+            int mode = appOpsManager.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, applicationInfo.uid, applicationInfo.packageName);
+            return (mode == AppOpsManager.MODE_ALLOWED);
+        } catch (Exception e) {
+            Log.e("Permission Error", "Error:" + e);
+            return false;
         }
     }
 }
