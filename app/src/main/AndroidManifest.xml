@@ -5,6 +5,12 @@
     <uses-permission xmlns:tools="http://schemas.android.com/tools"
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -21,7 +27,8 @@
         </activity>
 
         <!-- Mention the service name here -->
-        <service android:name="com.upside.logger.SensorLogger"/>
+        <service android:name="com.upside.logger.SensorLogger"
+            android:foregroundServiceType="specialUse"/>
         <service android:name="com.upside.logger.Tracer"/>
 
     </application>

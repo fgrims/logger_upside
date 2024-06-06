@@ -1,12 +1,18 @@
 package com.upside.logger;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.os.Environment;
@@ -18,12 +24,21 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import android.os.PowerManager.WakeLock;
+import android.os.PowerManager;
 
 import android.provider.Settings.Secure;
 import android.content.Context;
 
+import androidx.core.app.NotificationCompat;
+
 public class SensorLogger extends Service implements SensorEventListener {
+
+    public static final String TAG = SensorLogger.class.getName();
+    private static final String CHANNEL_ID = "SENSOR_CHANNEL";
     private SensorManager sensorManager;
+
+    private WakeLock mWakeLock = null;
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
 
     public Context context;
@@ -37,6 +52,9 @@ public class SensorLogger extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
+        PowerManager manager =
+                (PowerManager) getSystemService(Context.POWER_SERVICE);
+        mWakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
         // get the device's unique ID
         context = this;
@@ -48,25 +66,25 @@ public class SensorLogger extends Service implements SensorEventListener {
 
         file_acc = new File(this.downloadsDir, "log_accelerometer" + "_" + android_id + "_" + sha_acc + ".csv");
         file_gyro = new File(this.downloadsDir, "log_gyroscope" + "_" + android_id + "_" + sha_gyro + ".csv");
-
+        /*
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         if (sensorManager != null) {
             Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             Sensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
             if (accelerometer != null) {
-                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+                sensorManager.registerListener(this, accelerometer, 1000000, 1000000); // SensorManager.SENSOR_DELAY_NORMAL
                 System.out.println("Accelerometer sensor registered");
             } else {
                 Log.e("AccelerometerLogging", "Accelerometer sensor not available");
             }
             if (gyroscope != null) {
-                sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_NORMAL);
+                sensorManager.registerListener(this, gyroscope, 1000000, 1000000); //SensorManager.SENSOR_DELAY_NORMAL
                 System.out.println("Gyroscope sensor registered");
             } else {
                 Log.e("GyroscopeLogging", "Gyroscope sensor not available");
             }
         }
-
+        */
         try{
             if(!this.file_gyro.exists()) {
                 boolean created = this.file_gyro.createNewFile();
@@ -99,14 +117,17 @@ public class SensorLogger extends Service implements SensorEventListener {
         } catch (IOException e) {
             Log.e("AccelerometerLogging", "Error opening file_acc for writing");
         }
-
-
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
+
+        mWakeLock.acquire();
+        createNotificationChannel();
+        startMeasure();
+        startForeground(1, getNotification());
         return START_STICKY;
     }
 
@@ -132,6 +153,8 @@ public class SensorLogger extends Service implements SensorEventListener {
         } catch (IOException e) {
             Log.e("GyroscopeLogging", "Error closing file_gyro");
         }
+
+        mWakeLock.release();
     }
 
     @Override
@@ -141,6 +164,7 @@ public class SensorLogger extends Service implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        //Log.e("HELLO", "SENSOR SERVICE ALIVE");
         if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             float x = event.values[0];
             float y = event.values[1];
@@ -174,6 +198,40 @@ public class SensorLogger extends Service implements SensorEventListener {
         // not used
     }
 
+    private Notification getNotification() {
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
+                notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE);
+        NotificationCompat.Builder builder = new
+                NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Location Service")
+                .setContentText("Getting location updates")
+                .setSmallIcon(R.drawable.ic_launcher_background)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true);
+        if (android.os.Build.VERSION.SDK_INT >=
+                android.os.Build.VERSION_CODES.S) {
+
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
+        }
+        return builder.build();
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Location Service Channel",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            NotificationManager manager =
+                    getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(serviceChannel);
+        }
+    }
+
+
     public String randomSHA(){
 
         SecureRandom r = new SecureRandom();
@@ -197,6 +255,26 @@ public class SensorLogger extends Service implements SensorEventListener {
         }
         } catch (NoSuchAlgorithmException e) {
             return null;
+        }
+    }
+
+    protected void startMeasure() {
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        if (sensorManager != null) {
+            Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            Sensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+            if (accelerometer != null) {
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL); // SensorManager.SENSOR_DELAY_NORMAL
+                System.out.println("Accelerometer sensor registered");
+            } else {
+                Log.e("AccelerometerLogging", "Accelerometer sensor not available");
+            }
+            if (gyroscope != null) {
+                sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_NORMAL); //SensorManager.SENSOR_DELAY_NORMAL
+                System.out.println("Gyroscope sensor registered");
+            } else {
+                Log.e("GyroscopeLogging", "Gyroscope sensor not available");
+            }
         }
     }
 }
