@@ -7,17 +7,29 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.util.Log;
 import android.os.Environment;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
+
+import android.provider.Settings.Secure;
+import android.content.Context;
 
 public class SensorLogger extends Service implements SensorEventListener {
     private SensorManager sensorManager;
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-    public File file_acc = new File(this.downloadsDir, "log_accelerometer2.csv");
-    public File file_gyro = new File(this.downloadsDir, "log_gyroscope2.csv");
+
+    public Context context;
+
+    public File file_acc;
+    public File file_gyro;
     public FileWriter outfile_acc;
     public FileWriter outfile_gyro;
 
@@ -25,6 +37,18 @@ public class SensorLogger extends Service implements SensorEventListener {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // get the device's unique ID
+        context = this;
+        String android_id = Settings.Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
+
+        // generate random string for each new file
+        String sha_acc = randomSHA();
+        String sha_gyro = randomSHA();
+
+        file_acc = new File(this.downloadsDir, "log_accelerometer" + "_" + android_id + "_" + sha_acc + ".csv");
+        file_gyro = new File(this.downloadsDir, "log_gyroscope" + "_" + android_id + "_" + sha_gyro + ".csv");
+
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         if (sensorManager != null) {
             Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -148,5 +172,31 @@ public class SensorLogger extends Service implements SensorEventListener {
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // not used
+    }
+
+    public String randomSHA(){
+
+        SecureRandom r = new SecureRandom();
+        byte[] randNum = new byte[1000];
+        r.nextBytes(randNum);
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+
+        try {
+            md.update(randNum);
+            byte[] hashValue = md.digest();
+
+            byte[] encoded = Base64.getEncoder().encode(hashValue);
+            String hash = new String(encoded, StandardCharsets.UTF_8);
+            hash = hash.replaceAll("[^a-zA-Z0-9]", "");
+            Log.e("RANDOM HASH VALUE", "RANDOM HASH:" + hash);
+            return hash;
+        } catch (Exception e) {
+            Log.e("HASH ERROR", "ERROR:" + e);
+            return null;
+        }
+        } catch (NoSuchAlgorithmException e) {
+            return null;
+        }
     }
 }

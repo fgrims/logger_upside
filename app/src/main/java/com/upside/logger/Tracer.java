@@ -10,24 +10,23 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
-
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.lang.reflect.Method;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
-
-import kotlin.collections.ArrayDeque;
 
 public class Tracer extends Service {
+
+    public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+    public File file;
+    public FileWriter outfile;
+
+    boolean flag = false; // set to true if you want to write the processes on a file
 
     Context context = this;
     UsageStatsManager manager;
@@ -45,11 +44,29 @@ public class Tracer extends Service {
 
     public void onCreate() {
         super.onCreate();
+
+        file = new File(this.downloadsDir, "processes.txt");
+
+        try{
+            if(!this.file.exists()) {
+                boolean created = this.file.createNewFile();
+                if(created)
+                    Log.e("TRACING", "file for processes created");
+                else
+                    Log.e("TRACING", "file for processes not created");
+            }
+            this.outfile = new FileWriter(this.file.getAbsoluteFile());
+        } catch (IOException e) {
+            Log.e("TRACING", "ERROR" + e);
+        }
+
         try {
             manager = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
         } catch(Exception e) {
             Log.e("Running Processes", "Error: " +e);
         }
+
+
 
         this.getSystemService( ACTIVITY_SERVICE );
         //mHandler = new Handler();
@@ -57,6 +74,7 @@ public class Tracer extends Service {
         mThread.start();
         mHandler = new Handler(mThread.getLooper());
         tracer = new ProcessTracer();
+
         try {
             tracer.run();
             Log.e("Running Processes", "Start Tracing");
@@ -84,13 +102,14 @@ public class Tracer extends Service {
         @Override
         public void run() {
             try {
+                Log.e("HELLO", "ALIVE");
                 // list the process running from 10 seconds ago to now
                 runningAppProcessInfo = manager.queryUsageStats(UsageStatsManager.INTERVAL_BEST, System.currentTimeMillis()-10000, System.currentTimeMillis());
                 //Log.e("Running process", "List size: " + runningAppProcessInfo.size());
 
-                if (first_time == true) {
+                if (first_time) {
                     // if this is the first log
-                    // write the entire log in ArrayList
+                    // write the entire log in ArrayList whitelist
                     for (UsageStats process : runningAppProcessInfo) {
                         String processName = process.getPackageName();
                         whitelist.add(processName);
@@ -104,30 +123,43 @@ public class Tracer extends Service {
                         Log.d("Whitelist", "Whitelist " + element);
                     }
                 }
+
+                // if flag is true, write the processes in a file
+                // this is used the first time the tablet is used to log the native processes
+                if (flag) writeOnFile(runningAppProcessInfo);
+
                 for (UsageStats process : runningAppProcessInfo) {
                     String processName = process.getPackageName();
                     //Log.e("Running Processes", "Process running: " + processName);
                     if (!whitelist.contains(processName)) {
-                        // if it is the first time this package is opened
+                        // if there's a process not in the white list
                         // add it to alarm list with timestamp
-                        //Log.e("CAPIRE", "Name: " + processName + " LastTimeForegroundServiceUsed: " + process.getLastTimeVisible());
+
+                        //Log.e("CHECK", "Name: " + processName + " LastTimeForegroundServiceUsed: " + process.getLastTimeVisible());
                         if(!alarmProcess.containsKey(processName)) {
+                            // if the process appear the first time in the whitelist
+                            // add it
+                            Log.e("ALARM", "ALARM " + processName + " NOT AUTHORIZED THE FIRST TIME!");
                             alarmProcess.put(processName, process.getLastTimeVisible());
-                            Log.e("ALARM", "ALARM " + processName + " NOT AUTHORIZED!");
-                            //Log.e("ALARM", "this last time = " + process.getLastTimeForegroundServiceUsed());
                         } else if (alarmProcess.containsKey(processName) && process.getLastTimeVisible() > alarmProcess.get(processName)) {
-                            Log.e("HERE", "this last time = " + process.getLastTimeVisible() + " || before " + alarmProcess.get(processName));
-                            // else if the process already is in the alarm list
+                            // if the process already is in the alarm
                             // and its timestamp is greater than the one already saved
                             // then alarm and update
+
+                            //Log.e("HERE", processName + " -> this last time = " + process.getLastTimeVisible() + " || before " + alarmProcess.get(processName));
+
                             alarmProcess.replace(processName, process.getLastTimeVisible());
-                            Log.e("ALARM", "ALARM " + process + " NOT AUTHORIZED!");
+                            int size = alarmProcess.size();
+                            Log.e("ALARM", "ALARM 2: " + processName + " NOT AUTHORIZED ANOTHER TIME!");
+                            Log.e("TEST", "HASH MAP SIZE : " + size);
                         }
                     }
                 }
+                // for debuggig
+                /*
                 for (String i : alarmProcess.keySet()) {
                     Log.e("ALARM LIST","key: " + i + " value: " + alarmProcess.get(i));
-                }
+                }*/
             } catch (Exception e) {
                 Log.e("Running Processes", "Error: " + e);
             }
@@ -143,7 +175,7 @@ public class Tracer extends Service {
     }
 
     public void deleteElement() {
-        // for debug
+        // for debug purposes
         whitelist.remove("tv.twitch.android.app");
         whitelist.remove("com.google.android.youtube");
         whitelist.remove("com.hp.printercontrol");
@@ -151,5 +183,29 @@ public class Tracer extends Service {
         whitelist.remove("com.amazon.avod.thirdpartyclient");
         whitelist.remove("com.example.era");
 
+    }
+
+    public void writeOnFile(List<UsageStats> l) {
+        // method used the first time the tablet turned on
+        // create a file with all native package used to create the whitelist
+
+        for (UsageStats process : l) {
+            String processName = process.getPackageName();
+            try {
+                outfile.append(processName);
+                outfile.append("\n");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        flag = false;
+        Log.e("TRACING", "WRITE ON FILE");
+
+        try{
+            outfile.flush();
+            outfile.close();
+        } catch (IOException e) {
+            Log.e("TRACING", "Error closing file");
+        }
     }
 }
