@@ -1,5 +1,6 @@
 package com.upside.logger;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,6 +11,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -25,12 +27,16 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import android.os.PowerManager.WakeLock;
-import android.os.PowerManager;
-
 import android.provider.Settings.Secure;
 import android.content.Context;
-
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
+import android.view.*;
+import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import androidx.core.app.NotificationCompat;
+import com.google.android.gms.tasks.*;
+import com.google.firebase.storage.*;
 
 public class SensorLogger extends Service implements SensorEventListener {
 
@@ -48,6 +54,12 @@ public class SensorLogger extends Service implements SensorEventListener {
     public FileWriter outfile_acc;
     public FileWriter outfile_gyro;
 
+    // create
+    FirebaseStorage storage = FirebaseStorage.getInstance();
+    StorageReference storageRef = storage.getReferenceFromUrl("gs://movementtracing.appspot.com");
+    StorageReference logRefAcc;
+    StorageReference logRefGyro;
+
 
     @Override
     public void onCreate() {
@@ -64,8 +76,13 @@ public class SensorLogger extends Service implements SensorEventListener {
         String sha_acc = randomSHA();
         String sha_gyro = randomSHA();
 
-        file_acc = new File(this.downloadsDir, "log_accelerometer" + "_" + android_id + "_" + sha_acc + ".csv");
-        file_gyro = new File(this.downloadsDir, "log_gyroscope" + "_" + android_id + "_" + sha_gyro + ".csv");
+        String acc_fn = "log_accelerometer" + "_" + android_id + "_" + sha_acc + ".csv";
+        String gyro_fn = "log_gyroscope" + "_" + android_id + "_" + sha_gyro + ".csv";
+
+        file_acc = new File(this.downloadsDir, acc_fn);
+        file_gyro = new File(this.downloadsDir, gyro_fn);
+        logRefAcc = storageRef.child("log/" + android_id + "/accelerometer/" + acc_fn);
+        logRefGyro = storageRef.child("log/" + android_id + "/gyroscope/" + gyro_fn);
         /*
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         if (sensorManager != null) {
@@ -154,6 +171,12 @@ public class SensorLogger extends Service implements SensorEventListener {
             Log.e("GyroscopeLogging", "Error closing file_gyro");
         }
 
+        Uri f_acc = Uri.fromFile(file_acc);
+        Uri f_gyro = Uri.fromFile(file_gyro);
+
+        logRefAcc.putFile(f_acc);
+        logRefGyro.putFile(f_gyro);
+
         mWakeLock.release();
     }
 
@@ -198,6 +221,7 @@ public class SensorLogger extends Service implements SensorEventListener {
         // not used
     }
 
+    @SuppressLint("ObsoleteSdkInt")
     private Notification getNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
@@ -218,6 +242,7 @@ public class SensorLogger extends Service implements SensorEventListener {
         return builder.build();
     }
 
+    @SuppressLint("ObsoleteSdkInt")
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
@@ -232,7 +257,7 @@ public class SensorLogger extends Service implements SensorEventListener {
     }
 
 
-    public String randomSHA(){
+    public static String randomSHA(){
 
         SecureRandom r = new SecureRandom();
         byte[] randNum = new byte[1000];

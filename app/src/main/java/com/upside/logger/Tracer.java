@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+
 public class Tracer extends Service {
 
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
@@ -45,19 +46,22 @@ public class Tracer extends Service {
     public void onCreate() {
         super.onCreate();
 
-        file = new File(this.downloadsDir, "processes.txt");
+        if (flag)
+        {
+            file = new File(this.downloadsDir, "processes.txt");
 
-        try{
-            if(!this.file.exists()) {
-                boolean created = this.file.createNewFile();
-                if(created)
-                    Log.e("TRACING", "file for processes created");
-                else
-                    Log.e("TRACING", "file for processes not created");
+            try {
+                if (!this.file.exists()) {
+                    boolean created = this.file.createNewFile();
+                    if (created)
+                        Log.e("TRACING", "file for processes created");
+                    else
+                        Log.e("TRACING", "file for processes not created");
+                }
+                this.outfile = new FileWriter(this.file.getAbsoluteFile());
+            } catch (IOException e) {
+                Log.e("TRACING", "ERROR" + e);
             }
-            this.outfile = new FileWriter(this.file.getAbsoluteFile());
-        } catch (IOException e) {
-            Log.e("TRACING", "ERROR" + e);
         }
 
         try {
@@ -65,8 +69,6 @@ public class Tracer extends Service {
         } catch(Exception e) {
             Log.e("Running Processes", "Error: " +e);
         }
-
-
 
         this.getSystemService( ACTIVITY_SERVICE );
         //mHandler = new Handler();
@@ -99,9 +101,11 @@ public class Tracer extends Service {
     }
 
     private class ProcessTracer implements Runnable {
+
         @Override
         public void run() {
             try {
+
                 Log.e("HELLO", "ALIVE");
                 // list the process running from 10 seconds ago to now
                 runningAppProcessInfo = manager.queryUsageStats(UsageStatsManager.INTERVAL_BEST, System.currentTimeMillis()-10000, System.currentTimeMillis());
