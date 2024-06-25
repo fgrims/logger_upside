@@ -28,6 +28,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+    packagingOptions {
+        exclude("META-INF/DEPENDENCIES")
+    }
 }
 
 dependencies {
@@ -41,5 +44,6 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-storage")
+    implementation ("com.pusher:pusher-http-java:1.0.0")
 
 }

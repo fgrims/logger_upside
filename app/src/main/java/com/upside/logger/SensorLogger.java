@@ -68,6 +68,7 @@ public class SensorLogger extends Service implements SensorEventListener {
                 (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
+        /*
         // get the device's unique ID
         context = this;
         String android_id = Settings.Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
@@ -102,6 +103,56 @@ public class SensorLogger extends Service implements SensorEventListener {
             }
         }
         */
+        /*
+        try{
+            if(!this.file_gyro.exists()) {
+                boolean created = this.file_gyro.createNewFile();
+                if(created)
+                    Log.e("GyroscopeLogging", "file_gyro created");
+                else
+                    Log.e("GyroscopeLogging", "file_gyro not created");
+            }
+            this.outfile_gyro = new FileWriter(this.file_gyro.getAbsoluteFile());
+            String[] header_gyro = { "gyroscope.x", "gyroscope.y", "gyroscope.z" };
+            outfile_gyro.append(String.join(",", header_gyro));
+            outfile_gyro.append("\n");
+
+        } catch (IOException e) {
+            Log.e("GyroscopeLogging", "Error opening file_gyro for writing");
+        }
+
+        try{
+            if (!this.file_acc.exists()) {
+                boolean created = this.file_acc.createNewFile();
+                if (created)
+                    Log.e("AccelerometerLogging", "file_acc created");
+                else
+                    Log.e("AccelerometerLogging", "file_acc not created");
+            }
+            this.outfile_acc = new FileWriter(this.file_acc.getAbsoluteFile());
+            String[] header = { "accelerometer.x", "accelerometer.y", "accelerometer.z" };
+            outfile_acc.append(String.join(",", header));
+            outfile_acc.append("\n");
+        } catch (IOException e) {
+            Log.e("AccelerometerLogging", "Error opening file_acc for writing");
+        }*/
+    }
+
+    public void createFile(String userID) {
+        // get the device's unique ID
+
+        // generate random string for each new file
+        String sha_acc = randomSHA();
+        String sha_gyro = randomSHA();
+
+        String acc_fn = "log_accelerometer" + "_" + userID + "_" + sha_acc + ".csv";
+        String gyro_fn = "log_gyroscope" + "_" + userID + "_" + sha_gyro + ".csv";
+
+        file_acc = new File(this.downloadsDir, acc_fn);
+        file_gyro = new File(this.downloadsDir, gyro_fn);
+        logRefAcc = storageRef.child("log/" + userID + "/accelerometer/" + acc_fn);
+        logRefGyro = storageRef.child("log/" + userID + "/gyroscope/" + gyro_fn);
+
         try{
             if(!this.file_gyro.exists()) {
                 boolean created = this.file_gyro.createNewFile();
@@ -140,11 +191,15 @@ public class SensorLogger extends Service implements SensorEventListener {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
-
+        String userID = intent.getStringExtra("userID");
+        createFile(userID);
         mWakeLock.acquire();
         createNotificationChannel();
         startMeasure();
-        startForeground(1, getNotification());
+        NotificationManager notificationManager =
+                (NotificationManager) getSystemService(Service.NOTIFICATION_SERVICE);
+        notificationManager.notify(2, getNotification());
+        startForeground(2, getNotification());
         return START_STICKY;
     }
 
@@ -229,8 +284,8 @@ public class SensorLogger extends Service implements SensorEventListener {
                 PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder builder = new
                 NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Location Service")
-                .setContentText("Getting location updates")
+                .setContentTitle("Logging Service")
+                .setContentText("Logging Movement")
                 .setSmallIcon(R.drawable.ic_launcher_background)
                 .setContentIntent(pendingIntent)
                 .setOngoing(true);
@@ -247,7 +302,7 @@ public class SensorLogger extends Service implements SensorEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Location Service Channel",
+                    "Logger Service Channel",
                     NotificationManager.IMPORTANCE_HIGH
             );
             NotificationManager manager =

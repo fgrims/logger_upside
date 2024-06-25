@@ -56,7 +56,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if(view == start){
 
             // starting the service
-            startService(new Intent( this, SensorLogger.class ) );
+            //startService(new Intent( this, SensorLogger.class ) );
+            /*
+            Intent serviceIntent = new Intent(this, SensorLogger.class);
+            serviceIntent.putExtra("userID", "PROVA");
+            startForegroundService(serviceIntent);
+            */
+            startForegroundService(new Intent(this, SensorLogger.class));
             Toast.makeText(MainActivity.this, "Logging started", Toast.LENGTH_SHORT).show();
 
         }
@@ -69,7 +75,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             Toast.makeText(MainActivity.this, "Logging stopped", Toast.LENGTH_SHORT).show();
 
         } else if (view == startTracing) {
-            startService(new Intent(this, Tracer.class));
+
+            startForegroundService(new Intent(this, Tracer.class));
             Toast.makeText(MainActivity.this, "Tracing started", Toast.LENGTH_SHORT).show();
 
         } else if (view == stopTracing){
