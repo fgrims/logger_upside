@@ -76,12 +76,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         } else if (view == startTracing) {
 
-            startForegroundService(new Intent(this, Tracer.class));
-            Toast.makeText(MainActivity.this, "Tracing started", Toast.LENGTH_SHORT).show();
+//            startForegroundService(new Intent(this, Tracer.class));
+//            Toast.makeText(MainActivity.this, "Tracing started", Toast.LENGTH_SHORT).show();
 
         } else if (view == stopTracing){
-            stopService(new Intent(this, Tracer.class));
-            Toast.makeText(MainActivity.this, "Tracing stopped", Toast.LENGTH_SHORT).show();
+//            stopService(new Intent(this, Tracer.class));
+//            Toast.makeText(MainActivity.this, "Tracing stopped", Toast.LENGTH_SHORT).show();
         }
     }
     private boolean checkPermission() {

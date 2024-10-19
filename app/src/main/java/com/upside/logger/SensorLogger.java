@@ -25,17 +25,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.concurrent.Executor;
 
 import android.os.PowerManager.WakeLock;
 import android.content.Context;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
-
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.*;
 import com.google.firebase.storage.*;
 
 public class SensorLogger extends Service implements SensorEventListener {
@@ -52,6 +46,8 @@ public class SensorLogger extends Service implements SensorEventListener {
     public FileWriter outfile_acc;
     public FileWriter outfile_gyro;
 
+    public boolean check = true;
+
     // create
     FirebaseStorage storage = FirebaseStorage.getInstance();
     StorageReference storageRef = storage.getReferenceFromUrl("gs://movementtracing.appspot.com");
@@ -59,7 +55,6 @@ public class SensorLogger extends Service implements SensorEventListener {
     StorageReference logRefGyro;
 
     private FirebaseAuth mAuth;
-    public FirebaseUser user;
     boolean check_auth = false;
 
     @Override
@@ -80,20 +75,20 @@ public class SensorLogger extends Service implements SensorEventListener {
         }
     }
 
-    private void signInAnonymously() {
-        mAuth.signInAnonymously()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        // Sign in success, update UI with the signed-in user's information
-                        check_auth = true;
-                    } else {
-                        // If sign in fails, display a message to the user.
-                        Log.w("MyFirebaseService", "signInAnonymously:failure", task.getException());
-                        check_auth = false;
-                    }
-                });
-
-    }
+//    private void signInAnonymously() {
+//        mAuth.signInAnonymously()
+//                .addOnCompleteListener(task -> {
+//                    if (task.isSuccessful()) {
+//                        // Sign in success, update UI with the signed-in user's information
+//                        check_auth = true;
+//                    } else {
+//                        // If sign in fails, display a message to the user.
+//                        Log.w("MyFirebaseService", "signInAnonymously:failure", task.getException());
+//                        check_auth = false;
+//                    }
+//                });
+//
+//    }
 
     public void createFile(String userID, String pkgname) {
         // get the device's unique ID
@@ -149,10 +144,45 @@ public class SensorLogger extends Service implements SensorEventListener {
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
 
-        String userID = intent.getStringExtra("userID");
-        String pkgname = intent.getStringExtra("pkgName");
+       String userID_tmp = intent.getStringExtra("userID");
+       String userID;
+       if (userID_tmp != null) {
+           userID = userID_tmp;
+       } else {
+           userID = "nullname";
+        }
 
-        String n_pkgname = getLastPart(pkgname);
+        String pkgname = intent.getStringExtra("pkgName");
+        String n_pkgname;
+        if(pkgname == "nullGame") {
+            n_pkgname = "nullpkg";
+            this.check = false;
+
+            Log.e("STOP", "STOP_SELF");
+        } else {
+            n_pkgname = getLastPart(pkgname);
+        }
+
+//        String userID_tmp = "test12";
+//        String userID;
+//        if (userID_tmp != null) {
+//            userID = userID_tmp;
+//        } else {
+//            userID = "nullname";
+//        }
+//
+//        String pkgname = "nullGameTEST_TRUE";
+//        String n_pkgname;
+//        if(pkgname == "nullGame") {
+//            n_pkgname = "nullpkg";
+//            this.check = false;
+//
+//            Log.e("STOP", "STOP_SELF");
+//        } else {
+//            n_pkgname = "test12";
+//        }
+//        String userID = "grims";
+//        String n_pkgname = "temp";
         createFile(userID, n_pkgname);
         mWakeLock.acquire();
         createNotificationChannel();
@@ -164,9 +194,16 @@ public class SensorLogger extends Service implements SensorEventListener {
         return START_STICKY;
     }
 
+    public void deleteFile() {
+        file_acc.delete();
+        file_gyro.delete();
+    }
+
     @Override
     public void onDestroy() {
+
         super.onDestroy();
+
         // Unregister sensor listener on destroy
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
@@ -188,9 +225,12 @@ public class SensorLogger extends Service implements SensorEventListener {
         }
 
         mWakeLock.release();
-        if(check_auth) {
+
+        if(this.check == true) {
             Uri f_acc = Uri.fromFile(file_acc);
             Uri f_gyro = Uri.fromFile(file_gyro);
+            logRefAcc.putFile(f_acc);
+            logRefGyro.putFile(f_gyro);
             logRefAcc.putFile(f_acc)
                     .addOnSuccessListener(taskSnapshot -> {
                         // File uploaded successfully, delete local file
@@ -217,9 +257,10 @@ public class SensorLogger extends Service implements SensorEventListener {
                     .addOnFailureListener(exception -> {
                         // Handle unsuccessful uploads
                         Log.e("UPLOAD GYRO FILE", "gyro file upload failed: " + exception.getMessage());
-                    });
+                        });
         } else {
-            Log.e("AUTH ERROR", "ERROR: Not authenticated");
+            Log.e("STOP", "DELETE FILES");
+            deleteFile();
         }
     }
 
