@@ -45,5 +45,6 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-storage")
     implementation ("com.pusher:pusher-http-java:1.0.0")
+    implementation("com.google.firebase:firebase-auth")
 
 }

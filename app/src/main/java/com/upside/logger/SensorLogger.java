@@ -15,7 +15,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.provider.Settings;
 import android.util.Log;
 import android.os.Environment;
 import java.io.File;
@@ -26,16 +25,17 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.concurrent.Executor;
+
 import android.os.PowerManager.WakeLock;
-import android.provider.Settings.Secure;
 import android.content.Context;
-import android.view.LayoutInflater;
-import android.view.MotionEvent;
-import android.view.*;
-import android.widget.LinearLayout;
-import android.widget.PopupWindow;
+
+import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
-import com.google.android.gms.tasks.*;
+
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.*;
 import com.google.firebase.storage.*;
 
 public class SensorLogger extends Service implements SensorEventListener {
@@ -46,8 +46,6 @@ public class SensorLogger extends Service implements SensorEventListener {
 
     private WakeLock mWakeLock = null;
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-
-    public Context context;
 
     public File file_acc;
     public File file_gyro;
@@ -60,93 +58,52 @@ public class SensorLogger extends Service implements SensorEventListener {
     StorageReference logRefAcc;
     StorageReference logRefGyro;
 
+    private FirebaseAuth mAuth;
+    public FirebaseUser user;
+    boolean check_auth = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
+
         PowerManager manager =
                 (PowerManager) getSystemService(Context.POWER_SERVICE);
         mWakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
 
-        /*
-        // get the device's unique ID
-        context = this;
-        String android_id = Settings.Secure.getString(context.getContentResolver(), Secure.ANDROID_ID);
-
-        // generate random string for each new file
-        String sha_acc = randomSHA();
-        String sha_gyro = randomSHA();
-
-        String acc_fn = "log_accelerometer" + "_" + android_id + "_" + sha_acc + ".csv";
-        String gyro_fn = "log_gyroscope" + "_" + android_id + "_" + sha_gyro + ".csv";
-
-        file_acc = new File(this.downloadsDir, acc_fn);
-        file_gyro = new File(this.downloadsDir, gyro_fn);
-        logRefAcc = storageRef.child("log/" + android_id + "/accelerometer/" + acc_fn);
-        logRefGyro = storageRef.child("log/" + android_id + "/gyroscope/" + gyro_fn);
-        /*
-        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        if (sensorManager != null) {
-            Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            Sensor gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-            if (accelerometer != null) {
-                sensorManager.registerListener(this, accelerometer, 1000000, 1000000); // SensorManager.SENSOR_DELAY_NORMAL
-                System.out.println("Accelerometer sensor registered");
-            } else {
-                Log.e("AccelerometerLogging", "Accelerometer sensor not available");
-            }
-            if (gyroscope != null) {
-                sensorManager.registerListener(this, gyroscope, 1000000, 1000000); //SensorManager.SENSOR_DELAY_NORMAL
-                System.out.println("Gyroscope sensor registered");
-            } else {
-                Log.e("GyroscopeLogging", "Gyroscope sensor not available");
-            }
+        mAuth = FirebaseAuth.getInstance();
+        if (mAuth.getCurrentUser() != null)
+        {
+            mAuth.getCurrentUser().reload();
+            check_auth = true;
+        } else {
+            signInAnonymously();
         }
-        */
-        /*
-        try{
-            if(!this.file_gyro.exists()) {
-                boolean created = this.file_gyro.createNewFile();
-                if(created)
-                    Log.e("GyroscopeLogging", "file_gyro created");
-                else
-                    Log.e("GyroscopeLogging", "file_gyro not created");
-            }
-            this.outfile_gyro = new FileWriter(this.file_gyro.getAbsoluteFile());
-            String[] header_gyro = { "gyroscope.x", "gyroscope.y", "gyroscope.z" };
-            outfile_gyro.append(String.join(",", header_gyro));
-            outfile_gyro.append("\n");
-
-        } catch (IOException e) {
-            Log.e("GyroscopeLogging", "Error opening file_gyro for writing");
-        }
-
-        try{
-            if (!this.file_acc.exists()) {
-                boolean created = this.file_acc.createNewFile();
-                if (created)
-                    Log.e("AccelerometerLogging", "file_acc created");
-                else
-                    Log.e("AccelerometerLogging", "file_acc not created");
-            }
-            this.outfile_acc = new FileWriter(this.file_acc.getAbsoluteFile());
-            String[] header = { "accelerometer.x", "accelerometer.y", "accelerometer.z" };
-            outfile_acc.append(String.join(",", header));
-            outfile_acc.append("\n");
-        } catch (IOException e) {
-            Log.e("AccelerometerLogging", "Error opening file_acc for writing");
-        }*/
     }
 
-    public void createFile(String userID) {
+    private void signInAnonymously() {
+        mAuth.signInAnonymously()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        // Sign in success, update UI with the signed-in user's information
+                        check_auth = true;
+                    } else {
+                        // If sign in fails, display a message to the user.
+                        Log.w("MyFirebaseService", "signInAnonymously:failure", task.getException());
+                        check_auth = false;
+                    }
+                });
+
+    }
+
+    public void createFile(String userID, String pkgname) {
         // get the device's unique ID
 
         // generate random string for each new file
         String sha_acc = randomSHA();
         String sha_gyro = randomSHA();
 
-        String acc_fn = "log_accelerometer" + "_" + userID + "_" + sha_acc + ".csv";
-        String gyro_fn = "log_gyroscope" + "_" + userID + "_" + sha_gyro + ".csv";
+        String acc_fn = "log_accelerometer" + "_" + userID + "_" + pkgname + "_" + sha_acc + ".csv";
+        String gyro_fn = "log_gyroscope" + "_" + userID + "_" + pkgname + "_" + sha_gyro + ".csv";
 
         file_acc = new File(this.downloadsDir, acc_fn);
         file_gyro = new File(this.downloadsDir, gyro_fn);
@@ -191,8 +148,12 @@ public class SensorLogger extends Service implements SensorEventListener {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
+
         String userID = intent.getStringExtra("userID");
-        createFile(userID);
+        String pkgname = intent.getStringExtra("pkgName");
+
+        String n_pkgname = getLastPart(pkgname);
+        createFile(userID, n_pkgname);
         mWakeLock.acquire();
         createNotificationChannel();
         startMeasure();
@@ -226,15 +187,46 @@ public class SensorLogger extends Service implements SensorEventListener {
             Log.e("GyroscopeLogging", "Error closing file_gyro");
         }
 
-        Uri f_acc = Uri.fromFile(file_acc);
-        Uri f_gyro = Uri.fromFile(file_gyro);
-
-        logRefAcc.putFile(f_acc);
-        logRefGyro.putFile(f_gyro);
-
         mWakeLock.release();
+        if(check_auth) {
+            Uri f_acc = Uri.fromFile(file_acc);
+            Uri f_gyro = Uri.fromFile(file_gyro);
+            logRefAcc.putFile(f_acc)
+                    .addOnSuccessListener(taskSnapshot -> {
+                        // File uploaded successfully, delete local file
+                        if (file_acc.delete()) {
+                            Log.e("DELETE ACC FILE", "acc file deleted");
+                        } else {
+                            Log.e("DELETE ACC FILE", "acc file not deleted");
+                        }
+                    })
+                    .addOnFailureListener(exception -> {
+                        // Handle unsuccessful uploads
+                        Log.e("UPLOAD ACC FILE", "acc file upload failed: " + exception.getMessage());
+                    });
+
+            logRefGyro.putFile(f_gyro)
+                    .addOnSuccessListener(taskSnapshot -> {
+                        // File uploaded successfully, delete local file
+                        if (file_gyro.delete()) {
+                            Log.e("DELETE GYRO FILE", "gyro file deleted");
+                        } else {
+                            Log.e("DELETE GYRO FILE", "gyro file not deleted");
+                        }
+                    })
+                    .addOnFailureListener(exception -> {
+                        // Handle unsuccessful uploads
+                        Log.e("UPLOAD GYRO FILE", "gyro file upload failed: " + exception.getMessage());
+                    });
+        } else {
+            Log.e("AUTH ERROR", "ERROR: Not authenticated");
+        }
     }
 
+    public static String getLastPart(String input) {
+        String[] parts = input.split("\\.");
+        return parts[parts.length - 1];
+    }
     @Override
     public IBinder onBind(Intent intent) {
         return null;

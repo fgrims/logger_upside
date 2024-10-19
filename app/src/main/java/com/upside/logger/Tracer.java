@@ -15,35 +15,44 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.os.NetworkOnMainThreadException;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
-
-import com.pusher.rest.Pusher;
-import com.pusher.rest.data.Result;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.storage.*;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+
+import android.net.Uri;
 
 
 public class Tracer extends Service {
 
     private static final String CHANNEL_ID = "TRACER_CHANNEL";
-    public String id_slot;
     public File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
 
     public File file;
+    public File f_tracer;
     public FileWriter outfile;
+    public FileWriter fw;
 
     boolean flag = false; // set to true if you want to write the processes on a file
 
@@ -58,8 +67,22 @@ public class Tracer extends Service {
     private Handler mHandler;
     public boolean first_time = true;
     ArrayList<String> whitelist = new ArrayList<>();
+    Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+    private static final SimpleDateFormat sdf1 = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss");
 
+    private static FirebaseApp INSTANCE;
+
+    FirebaseStorage storage;
+    StorageReference storageRef;
+    StorageReference logProcesses;
+    private FirebaseAuth mAuth;
+    boolean check_auth = false;
     ArrayList<String> packageList = new ArrayList<>(Arrays.asList(
+            "air.com.ubisoft.brawl.halla.platform.fighting.action.pvp",
+            "com.Psyonix.RL2D",
+            "com.ea.gp.fifaultimate",
+            "com.supercell.clashroyale",
+            "com.chess",
             "com.epicgames.fortnite",
             "com.epicgames.portal",
             "com.upside.kioskmanager",
@@ -99,7 +122,7 @@ public class Tracer extends Service {
             "com.android.internal.systemui.navbar.gestural_wide_back",
             "com.android.virtualmachine.res",
             "com.android.wallpapercropper",
-            "com.google.android.federatedcompute",
+            "com.google.android.federated-compute",
             "com.samsung.android.keycustomizationinfobackupservice",
             "com.samsung.android.wallpaper.res",
             "com.samsung.android.smartmirroring",
@@ -279,6 +302,28 @@ public class Tracer extends Service {
     public void onCreate() {
         super.onCreate();
 
+        mAuth = FirebaseAuth.getInstance(this.getInstance(this.getApplicationContext()));
+
+        if (mAuth.getCurrentUser() != null)
+        {
+            System.out.println("CHECK AUTH 1 ");
+            String uid = mAuth.getCurrentUser().getUid();
+            Log.e("USER ALREADY AUTHENTICATED ", "USER ID: " + uid);
+            check_auth = true;
+        } else {
+            System.out.println("CHECK AUTH 2");
+            signInAnonymously();
+        }
+
+        try{
+            storage = FirebaseStorage.getInstance(this.getInstance(this.getApplicationContext()));
+            // storageRef = storage.getReferenceFromUrl("gs://processestracing.appspot.com");
+            storageRef = storage.getReference();
+
+        } catch(Exception e) {
+            Log.e("ERROR STORAGE", "ERROR: " + e);
+        }
+
         if (flag)
         {
             file = new File(this.downloadsDir, "processes.txt");
@@ -306,10 +351,67 @@ public class Tracer extends Service {
         // here
     }
 
+    public static FirebaseApp getInstance(Context context) {
+        if (INSTANCE == null) {
+            INSTANCE = getSecondProject(context);
+        }
+        return INSTANCE;
+    }
+    private static FirebaseApp getSecondProject(Context context) {
+        FirebaseOptions options1 = new FirebaseOptions.Builder()
+                .setApiKey("AIzaSyBh-PO6DK8_u7CS1NjaN9Dph0jSgX2z0V4")
+                .setApplicationId("1:530039730185:android:b21b7f6df4e7e761dd08d8")
+                .setProjectId("processestracing")
+                .setStorageBucket("processestracing.appspot.com")
+                .build();
+
+        FirebaseApp.initializeApp(context, options1, "tracer_app");
+        return FirebaseApp.getInstance("tracer_app");
+    }
+    private void signInAnonymously() {
+        mAuth.signInAnonymously()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        // Sign in success, update UI with the signed-in user's information
+                        check_auth = true;
+
+                    } else {
+                        // If sign in fails, display a message to the user.
+                        Log.e("MyFirebaseService", "signInAnonymously:failure", task.getException());
+                        check_auth = false;
+                    }
+                });
+    }
+
+    public void createFile(String userID, String game){
+        String f_sha = randomSHA();
+        String fn = "processes_" + userID + "_" + game + "_" + f_sha + ".txt";
+
+        f_tracer = new File(this.downloadsDir, fn);
+        logProcesses = storageRef.child("tracing/" + userID + "/" + fn);
+
+        try{
+            if(!this.f_tracer.exists()) {
+                boolean created = this.f_tracer.createNewFile();
+                if(created)
+                    Log.e("TRACING FILE", "f_tracer created");
+                else
+                    Log.e("TRACING FILE", "f_tracer not created");
+            }
+            this.fw = new FileWriter(this.f_tracer.getAbsoluteFile());
+        } catch (IOException e) {
+            Log.e("TRACING FILE", "Error opening f_tracer for writing");
+        }
+    }
+
     public int onStartCommand(Intent intent, int flags, int startId) {
         // This is necessary for the service to continue running in the background
         // Return START_STICKY to ensure the service restarts if it's killed by the system
-        id_slot = intent.getStringExtra("slotID");
+
+        String userID = intent.getStringExtra("userID");
+        String pkgname = intent.getStringExtra("pkgName");
+        String n_pkgname = getLastPart(pkgname);
+        createFile(userID, n_pkgname);
         setService();
         mHandler.removeCallbacks(tracer);
         mHandler.postDelayed(tracer, DEFAULT_TIMEOUT);
@@ -319,6 +421,11 @@ public class Tracer extends Service {
         notificationManager.notify(1, getNotification());
         startForeground(1, getNotification());
         return START_STICKY;
+    }
+
+    public static String getLastPart(String input) {
+        String[] parts = input.split("\\.");
+        return parts[parts.length - 1];
     }
 
     @Nullable
@@ -349,18 +456,11 @@ public class Tracer extends Service {
 
     private class ProcessTracer implements Runnable {
 
-        Pusher pusher = new Pusher("1822365", "faf40b647c793dd9ee86", "b03af5fa2309eb7974b2");
-
         Map<String, String> eventData = new HashMap<>();
-        public ProcessTracer() {
-            eventData.put("slot_id", id_slot);
-        }
 
         @Override
         public void run() {
             try {
-                pusher.setCluster("eu");
-                pusher.setEncrypted(true);
 
                 Log.e("HELLO", "ALIVE");
                 // list the process running from 10 seconds ago to now
@@ -408,9 +508,12 @@ public class Tracer extends Service {
                                 // if the process appear the first time in the whitelist
                                 // add it
                                 eventData.put("alarm", processName);
-                                Result res = pusher.trigger("TRACER", "Unauthorized", eventData);
                                 eventData.remove("alarm");
-                                Log.e("STATUS", "MSG: " + res.getStatus());
+                                // write on file the process
+                                fw.append(processName);
+                                fw.append(", ");
+                                fw.append(sdf1.format(timestamp));
+                                fw.append("\n");
                                 Log.e("ALARM", "ALARM " + processName + " NOT AUTHORIZED THE FIRST TIME!");
                                 alarmProcess.put(processName, process.getLastTimeVisible());
                             } else if (alarmProcess.containsKey(processName) && process.getLastTimeVisible() > alarmProcess.get(processName)) {
@@ -420,9 +523,11 @@ public class Tracer extends Service {
                                 alarmProcess.replace(processName, process.getLastTimeVisible());
 
                                 eventData.put("alarm", processName);
-                                Result res = pusher.trigger("TRACER", "Unauthorized", eventData);
+                                fw.append(processName);
+                                fw.append(", ");
+                                fw.append(sdf1.format(timestamp));
+                                fw.append("\n");
                                 eventData.remove("alarm");
-                                Log.e("STATUS", "MSG: " + res.getStatus());
                                 Log.e("ALARM", "ALARM 2: " + processName + " NOT AUTHORIZED ANOTHER TIME!");
                                 //int size = alarmProcess.size();
                                 //Log.e("TEST", "HASH MAP SIZE : " + size);
@@ -450,6 +555,35 @@ public class Tracer extends Service {
 
         executorService.shutdown();
         super.onDestroy();
+
+        try{
+            //this.bw.close();
+            fw.flush();
+            fw.close();
+        } catch (IOException e) {
+            Log.e("AccelerometerLogging", "Error closing file_acc");
+        }
+
+        if(check_auth) {
+            // add firebase
+            Uri tracing_uri = Uri.fromFile(f_tracer);
+
+            logProcesses.putFile(tracing_uri)
+                    .addOnSuccessListener(taskSnapshot -> {
+                        // File uploaded successfully, delete local file
+                        if (f_tracer.delete()) {
+                            Log.e("DELETE TRACING FILE", "tracing file deleted");
+                        } else {
+                            Log.e("DELETE TRACING FILE", "tracing file not deleted");
+                        }
+                    })
+                    .addOnFailureListener(exception -> {
+                        // Handle unsuccessful uploads
+                        Log.e("UPLOAD TRACING FILE", "tracing file upload failed: " + exception.getMessage());
+                    });
+        } else {
+            Log.e("AUTH ERROR", "ERROR: Not authenticated");
+        }
     }
 
     public void deleteElement() {
@@ -519,6 +653,32 @@ public class Tracer extends Service {
             outfile.close();
         } catch (IOException e) {
             Log.e("TRACING", "Error closing file");
+        }
+    }
+
+    public static String randomSHA(){
+
+        SecureRandom r = new SecureRandom();
+        byte[] randNum = new byte[1000];
+        r.nextBytes(randNum);
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+
+            try {
+                md.update(randNum);
+                byte[] hashValue = md.digest();
+
+                byte[] encoded = Base64.getEncoder().encode(hashValue);
+                String hash = new String(encoded, StandardCharsets.UTF_8);
+                hash = hash.replaceAll("[^a-zA-Z0-9]", "");
+                Log.e("RANDOM HASH VALUE", "RANDOM HASH:" + hash);
+                return hash;
+            } catch (Exception e) {
+                Log.e("HASH ERROR", "ERROR:" + e);
+                return null;
+            }
+        } catch (NoSuchAlgorithmException e) {
+            return null;
         }
     }
 }
